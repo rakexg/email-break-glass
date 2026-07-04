@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+  <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet">
+  <title>Field Notes</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 680px; margin: 50px auto; padding: 0 24px; color: #333; line-height: 1.7; }
+    h1 { font-size: 1.4em; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+    .entry-date { color: #888; font-size: 0.85em; }
+    .entry-body { margin: 16px 0 32px; }
+    .draft-section { border-top: 1px dashed #ccc; margin-top: 40px; padding-top: 20px; }
+    .draft-section p { color: #777; font-size: 0.9em; }
+    textarea { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 0.8em; color: #aaa; background: #fafafa; border: 1px solid #eee; padding: 8px; resize: vertical; }
+    .unlock-row { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .unlock-row input { flex: 1; padding: 6px 10px; border: 1px solid #ddd; font-family: Georgia, serif; color: #555; }
+    .unlock-row button { padding: 6px 14px; background: #f0f0f0; border: 1px solid #ccc; cursor: pointer; font-family: Georgia, serif; color: #555; }
+    .unlock-row button:hover { background: #e8e8e8; }
+    #result { margin-top: 14px; font-family: monospace; font-size: 0.9em; background: #f9f9f9; padding: 12px; border-left: 3px solid #ddd; white-space: pre-wrap; word-break: break-all; min-height: 20px; display: none; }
+  </style>
+</head>
+<body>
+
+  <h1>Field Notes</h1>
+
+  <div class="entry-date">June 2, 2026</div>
+  <div class="entry-body">
+    <p>Spent most of the morning repotting the herbs on the balcony. The basil didn't survive the move but the mint, as always, is plotting to take over everything.</p>
+    <p>Long walk in the evening. Should do that more often.</p>
+  </div>
+
+  <div class="draft-section">
+    <p>— draft —</p>
+    <div class="unlock-row">
+      <input type="text" id="accessKey" placeholder="Enter draft" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-form-type="other">
+      <button onclick="loadDraft()">Save</button>
+    </div>
+    <pre id="result"></pre>
+  </div>
+
+  <script>
+    const DRAFT = `U2FsdGVkX1/bL6pRemI0TlDPYQxnhct1ayL8va9vVXapSTGyWu8HbwpEhZrOhW2+
+M5sB+Jvop0C68VL2nnnAxWCVEFwihxUKHcjEkQfUoK0Pr1aI6Ru3DURHx6kdpO4G
+8SQO0+y74dId8WCXFULCFREcCrm+UjjF0Jl2ZoircvpNHJwKqU0ucAgB+tW3/Vf7
+nwEfOInvr3HAw+7U3AUtBQ==`;
+
+    async function loadDraft() {
+      const result = document.getElementById('result');
+      result.style.display = 'none';
+      result.textContent = '';
+      if (!window.crypto || !window.crypto.subtle) {
+        result.textContent = 'Browser not supported. Try Chrome, Firefox, or Safari.';
+        result.style.display = 'block';
+        return;
+      }
+      try {
+        const rawContent = DRAFT.replace(/\s+/g, '');
+        const el = document.getElementById('accessKey');
+        const accessKey = el.value;
+        el.value = '';
+
+        const bytes  = Uint8Array.from(atob(rawContent), c => c.charCodeAt(0));
+        const header = String.fromCharCode(...bytes.slice(0, 8));
+        if (header !== 'Salted__') throw new Error();
+
+        const grain   = bytes.slice(8, 16);
+        const content = bytes.slice(16);
+
+        const base = await crypto.subtle.importKey(
+          'raw', new TextEncoder().encode(accessKey), 'PBKDF2', false, ['deriveBits']
+        );
+        const stream = new Uint8Array(await crypto.subtle.deriveBits(
+          { name: 'PBKDF2', salt: grain, iterations: 600000, hash: 'SHA-256' },
+          base, 384
+        ));
+
+        const cipher = await crypto.subtle.importKey(
+          'raw', stream.slice(0, 32), 'AES-CBC', false, ['decrypt']
+        );
+        const plain = await crypto.subtle.decrypt(
+          { name: 'AES-CBC', iv: stream.slice(32, 48) }, cipher, content
+        );
+
+        result.textContent = new TextDecoder().decode(plain);
+        result.style.display = 'block';
+      } catch(_) {
+        result.textContent = 'Error saving draft.';
+        result.style.display = 'block';
+      }
+    }
+  </script>
+
+</body>
+</html>

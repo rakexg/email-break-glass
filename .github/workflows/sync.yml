@@ -1,0 +1,35 @@
+name: Sync to public repo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'robots.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push to public repo
+        env:
+          TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GIT_USERNAME: ${{ secrets.GIT_USERNAME }}
+          GIT_EMAIL: ${{ secrets.GIT_EMAIL }}
+          PUBLIC_REPO_NAME: ${{ secrets.PUBLIC_REPO_NAME }}
+        run: |
+          git clone "https://x-access-token:${TOKEN}@github.com/${GIT_USERNAME}/${PUBLIC_REPO_NAME}.git" public
+          cp index.html robots.txt public/
+          cd public
+          git config user.email "${GIT_EMAIL}"
+          git config user.name "${GIT_USERNAME}"
+          git checkout --orphan latest
+          git add .
+          git commit -m "Initial commit"
+          git push origin latest:main --force
